@@ -1,0 +1,11 @@
+{
+  "name": "AttendX - Face & Geofence Attendance PWA",
+  "description": "Biometric face verification and GPS geofence attendance PWA with AES-GCM encrypted offline sync, liveness challenges, and role-based workflows.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
