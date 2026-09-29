@@ -1,49 +1,36 @@
-/**
- * AttendX - Biometric Face & Geofence Attendance PWA
- * Features:
- * - PWA Installability (manifest, service worker, beforeinstallprompt & iOS Safari flow)
- * - 3-Pose Still Face Enrollment (Front, Left, Right) with 128-d embedding extraction
- * - Randomized Liveness Challenge (Blink, Turn Left/Right, Smile, Tilt Up)
- * - High-Accuracy GPS Geofencing (Haversine distance, accuracy filter, spoofing anomaly check)
- * - AES-GCM 256-bit Local Storage Encryption for Offline Student Sync
- * - Role-Based Workflows: Student, Teacher (Session launch & manual fallback), Admin (Approvals, Courses, CSV Export)
- */
-
 import React, { useState, useEffect } from 'react';
-import {
-  GraduationCap,
-  Briefcase,
-  Shield,
-  UserPlus,
-  RefreshCw,
-  Info,
-} from 'lucide-react';
 import {
   UserProfile,
   Course,
   Enrollment,
   ClassSession,
   AttendanceRecord,
+  FaceTemplate,
 } from './types';
 import {
   getUsers,
   getCurrentUser,
   setCurrentUser,
+  saveUser,
   getCourses,
   getEnrollments,
   getSessions,
   getAttendanceRecords,
   resetDemoData,
 } from './services/storageService';
+import { useTheme } from './hooks/useTheme';
 import { Header } from './components/common/Header';
-import { OfflineIndicator } from './components/common/OfflineIndicator';
 import { StudentView } from './components/student/StudentView';
+import { StudentPendingApprovalView } from './components/student/StudentPendingApprovalView';
+import { StudentFaceOnboardingModal } from './components/student/StudentFaceOnboardingModal';
+import { StudentAuthModal } from './components/auth/StudentAuthModal';
 import { TeacherView } from './components/teacher/TeacherView';
 import { AdminView } from './components/admin/AdminView';
-import { ProfileModal } from './components/common/ProfileModal';
-import { RegisterModal } from './components/auth/RegisterModal';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
+
   const [currentUser, setUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -51,17 +38,17 @@ export default function App() {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  // Modals
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
 
-  // Load all app data from persistent storage
   const loadData = () => {
     const allUsers = getUsers();
     setUsers(allUsers);
 
     let current = getCurrentUser();
     if (!current && allUsers.length > 0) {
-      current = allUsers.find((u) => u.role === 'student') || allUsers[0];
+      current = allUsers.find((u) => u.role === 'student' && u.status === 'approved') || allUsers[0];
       setCurrentUser(current);
     }
     setUser(current);
@@ -76,13 +63,24 @@ export default function App() {
     loadData();
   }, []);
 
-  const handleSelectRole = (roleType: 'student' | 'teacher' | 'admin' | 'pending') => {
+  // When current student changes or signs up, check if face onboarding is needed
+  useEffect(() => {
+    if (currentUser?.role === 'student' && !currentUser.faceSubmitted) {
+      setIsOnboardingModalOpen(true);
+    } else {
+      setIsOnboardingModalOpen(false);
+    }
+  }, [currentUser]);
+
+  const handleSelectRole = (roleType: 'student' | 'teacher' | 'admin') => {
     let targetUser: UserProfile | undefined;
 
-    if (roleType === 'pending') {
-      targetUser = users.find((u) => u.status === 'pending');
-    } else {
-      targetUser = users.find((u) => u.role === roleType && u.status === 'approved');
+    if (roleType === 'student') {
+      targetUser = users.find((u) => u.role === 'student' && u.status === 'approved') || users.find((u) => u.role === 'student');
+    } else if (roleType === 'teacher') {
+      targetUser = users.find((u) => u.role === 'teacher');
+    } else if (roleType === 'admin') {
+      targetUser = users.find((u) => u.role === 'admin');
     }
 
     if (targetUser) {
@@ -91,103 +89,66 @@ export default function App() {
     }
   };
 
-  const handleResetData = () => {
-    resetDemoData();
+  const handleFaceOnboardingComplete = (template: FaceTemplate) => {
+    if (!currentUser) return;
+    const updated: UserProfile = {
+      ...currentUser,
+      faceSubmitted: true,
+      faceTemplate: template,
+    };
+    saveUser(updated);
+    setUser(updated);
+    setIsOnboardingModalOpen(false);
     loadData();
   };
 
-  // Extract enrolled students list
+  const handleAuthSuccess = (user: UserProfile, isNewSignup: boolean) => {
+    setUser(user);
+    loadData();
+    if (isNewSignup || !user.faceSubmitted) {
+      setIsOnboardingModalOpen(true);
+    }
+  };
+
   const studentUsers = users.filter((u) => u.role === 'student');
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
-      {/* Top Header */}
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
+      {/* Top Simple Header with Theme Switch */}
       <Header
         currentUser={currentUser}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onSelectRole={handleSelectRole}
-        onOpenProfile={() => setIsProfileOpen(true)}
-        onResetData={handleResetData}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
-      {/* Quick Role Navigation Bar for testing & evaluation */}
-      <div className="bg-slate-100 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 py-2 px-4">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-            <span className="text-slate-400 font-semibold uppercase text-[10px] mr-1 hidden sm:inline">
-              Testing Mode:
-            </span>
-
-            <button
-              onClick={() => handleSelectRole('student')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                currentUser?.role === 'student' && currentUser?.status === 'approved'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Student (Alex)</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectRole('teacher')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                currentUser?.role === 'teacher'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span>Teacher (Dr. Lin)</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectRole('admin')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                currentUser?.role === 'admin'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>Admin (Dean Vance)</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectRole('pending')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                currentUser?.status === 'pending'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              <span>Pending User</span>
-            </button>
-          </div>
-
-          <button
-            onClick={() => setIsRegisterOpen(true)}
-            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Register New User</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      {/* Main Container */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+        {/* STUDENT FLOW */}
         {currentUser?.role === 'student' && (
-          <StudentView
-            student={currentUser}
-            courses={courses}
-            sessions={sessions}
-            attendanceRecords={attendanceRecords}
-            onDataChange={loadData}
-          />
+          <>
+            {/* If pending admin approval, do NOT show dashboard as requested */}
+            {currentUser.status === 'pending' ? (
+              <StudentPendingApprovalView
+                student={currentUser}
+                onSwitchToAdmin={() => handleSelectRole('admin')}
+                onRefresh={loadData}
+              />
+            ) : (
+              /* Approved Student Dashboard */
+              <StudentView
+                student={currentUser}
+                courses={courses}
+                sessions={sessions}
+                attendanceRecords={attendanceRecords}
+                onDataChange={loadData}
+              />
+            )}
+          </>
         )}
 
+        {/* TEACHER FLOW */}
         {currentUser?.role === 'teacher' && (
           <TeacherView
             teacher={currentUser}
@@ -200,6 +161,7 @@ export default function App() {
           />
         )}
 
+        {/* ADMIN FLOW */}
         {currentUser?.role === 'admin' && (
           <AdminView
             admin={currentUser}
@@ -208,40 +170,38 @@ export default function App() {
             enrollments={enrollments}
             attendanceRecords={attendanceRecords}
             onDataChange={loadData}
+            onSelectStudent={(approvedStudent) => {
+              setCurrentUser(approvedStudent);
+              setUser(approvedStudent);
+            }}
           />
         )}
       </main>
 
-      {/* Footer Info */}
-      <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-4 px-6 text-center text-xs text-slate-400 space-y-1">
-        <div>
-          AttendX Attendance PWA &bull; Client-side Face Feature Embeddings &bull; Haversine GPS Geofencing &bull; AES-GCM Encrypted Offline Sync
-        </div>
-        <div className="text-[11px] text-slate-500">
-          Designed with biometric privacy by design: video is never recorded or stored.
-        </div>
+      {/* Minimal Footer */}
+      <footer className="border-t border-zinc-200 dark:border-zinc-800 py-4 text-center text-xs text-zinc-400">
+        Attendance Portal &bull; Biometric Face Verification &amp; Classroom Geofencing
       </footer>
 
-      {/* Non-intrusive Offline Mode & AES-GCM Encrypted Queue Tray */}
-      <OfflineIndicator onSyncComplete={loadData} />
+      {/* Student Signup / Login Modal */}
+      <StudentAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
 
-      {/* Modals */}
-      {currentUser && (
-        <ProfileModal
-          user={currentUser}
-          isOpen={isProfileOpen}
-          onClose={() => setIsProfileOpen(false)}
-          onDataChange={loadData}
+      {/* First-time Face Submission Modal (3 Photos or Live Video) */}
+      {currentUser && currentUser.role === 'student' && isOnboardingModalOpen && (
+        <StudentFaceOnboardingModal
+          student={currentUser}
+          isOpen={isOnboardingModalOpen}
+          onComplete={handleFaceOnboardingComplete}
+          onClose={currentUser.faceSubmitted ? () => setIsOnboardingModalOpen(false) : undefined}
         />
       )}
 
-      <RegisterModal
-        isOpen={isRegisterOpen}
-        onClose={() => setIsRegisterOpen(false)}
-        onSuccess={(newUser) => {
-          loadData();
-        }}
-      />
+      {/* Non-intrusive Offline Indicator */}
+      <OfflineIndicator onSyncComplete={loadData} />
     </div>
   );
 }

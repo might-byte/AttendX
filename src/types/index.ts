@@ -2,8 +2,10 @@ export type UserRole = 'student' | 'teacher' | 'admin';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
 
 export interface FaceTemplate {
-  embedding: number[]; // 128-dimensional biometric vector
-  photoPreviewUrl: string; // compressed reference preview thumbnail (< 50KB)
+  embedding?: number[]; // Biometric vector
+  photoPreviewUrl?: string; // Preview thumbnail
+  images?: string[]; // 3 face images if submitted
+  submissionType?: 'photos' | 'live_video';
   enrolledAt: string;
   sampleCount: number;
 }
@@ -20,6 +22,7 @@ export interface UserProfile {
   registeredDeviceId?: string; // Bound device fingerprint
   biometricConsent: boolean;
   biometricConsentDate?: string;
+  faceSubmitted?: boolean;
   faceTemplate?: FaceTemplate;
   createdAt: string;
 }
@@ -32,6 +35,10 @@ export interface Course {
   teacherId: string;
   teacherName: string;
   roomName: string;
+  scheduleTime: string; // e.g. 'Mon, Wed 09:00 - 10:30 AM'
+  days: string[]; // e.g. ['Mon', 'Wed']
+  startTime: string; // '09:00'
+  endTime: string; // '10:30'
   defaultLat: number;
   defaultLng: number;
   defaultRadiusMeters: number;
