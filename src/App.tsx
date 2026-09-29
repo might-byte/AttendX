@@ -16,14 +16,13 @@ import {
   getEnrollments,
   getSessions,
   getAttendanceRecords,
-  resetDemoData,
 } from './services/storageService';
 import { useTheme } from './hooks/useTheme';
 import { Header } from './components/common/Header';
+import { AuthPage } from './components/auth/AuthPage';
+import { FaceOnboardingPage } from './components/student/FaceOnboardingPage';
 import { StudentView } from './components/student/StudentView';
 import { StudentPendingApprovalView } from './components/student/StudentPendingApprovalView';
-import { StudentFaceOnboardingModal } from './components/student/StudentFaceOnboardingModal';
-import { StudentAuthModal } from './components/auth/StudentAuthModal';
 import { TeacherView } from './components/teacher/TeacherView';
 import { AdminView } from './components/admin/AdminView';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
@@ -32,15 +31,12 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
 
   const [currentUser, setUser] = useState<UserProfile | null>(null);
+  const [isAuthPage, setIsAuthPage] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-
-  // Modals
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
 
   const loadData = () => {
     const allUsers = getUsers();
@@ -63,16 +59,8 @@ export default function App() {
     loadData();
   }, []);
 
-  // When current student changes or signs up, check if face onboarding is needed
-  useEffect(() => {
-    if (currentUser?.role === 'student' && !currentUser.faceSubmitted) {
-      setIsOnboardingModalOpen(true);
-    } else {
-      setIsOnboardingModalOpen(false);
-    }
-  }, [currentUser]);
-
   const handleSelectRole = (roleType: 'student' | 'teacher' | 'admin') => {
+    setIsAuthPage(false);
     let targetUser: UserProfile | undefined;
 
     if (roleType === 'student') {
@@ -89,6 +77,12 @@ export default function App() {
     }
   };
 
+  const handleAuthSuccess = (user: UserProfile, isNewSignup: boolean) => {
+    setUser(user);
+    setIsAuthPage(false);
+    loadData();
+  };
+
   const handleFaceOnboardingComplete = (template: FaceTemplate) => {
     if (!currentUser) return;
     const updated: UserProfile = {
@@ -98,110 +92,118 @@ export default function App() {
     };
     saveUser(updated);
     setUser(updated);
-    setIsOnboardingModalOpen(false);
     loadData();
   };
 
-  const handleAuthSuccess = (user: UserProfile, isNewSignup: boolean) => {
-    setUser(user);
-    loadData();
-    if (isNewSignup || !user.faceSubmitted) {
-      setIsOnboardingModalOpen(true);
-    }
+  const handleSignOut = () => {
+    setIsAuthPage(true);
   };
 
   const studentUsers = users.filter((u) => u.role === 'student');
 
+  // If Auth Page is active or no user logged in
+  if (isAuthPage || !currentUser) {
+    return (
+      <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 flex justify-center text-zinc-900 dark:text-zinc-100 transition-colors">
+        <div className="w-full max-w-md min-h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col shadow-sm border-x border-zinc-200 dark:border-zinc-800">
+          <AuthPage
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onAuthSuccess={handleAuthSuccess}
+            onSelectRole={(role) => handleSelectRole(role)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // If student needs to complete Face Verification (First-time onboarding page)
+  if (currentUser.role === 'student' && !currentUser.faceSubmitted) {
+    return (
+      <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 flex justify-center text-zinc-900 dark:text-zinc-100 transition-colors">
+        <div className="w-full max-w-md min-h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col shadow-sm border-x border-zinc-200 dark:border-zinc-800">
+          <FaceOnboardingPage
+            student={currentUser}
+            onComplete={handleFaceOnboardingComplete}
+            onCancel={handleSignOut}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
-      {/* Top Simple Header with Theme Switch */}
-      <Header
-        currentUser={currentUser}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onSelectRole={handleSelectRole}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-      />
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-        {/* STUDENT FLOW */}
-        {currentUser?.role === 'student' && (
-          <>
-            {/* If pending admin approval, do NOT show dashboard as requested */}
-            {currentUser.status === 'pending' ? (
-              <StudentPendingApprovalView
-                student={currentUser}
-                onSwitchToAdmin={() => handleSelectRole('admin')}
-                onRefresh={loadData}
-              />
-            ) : (
-              /* Approved Student Dashboard */
-              <StudentView
-                student={currentUser}
-                courses={courses}
-                sessions={sessions}
-                attendanceRecords={attendanceRecords}
-                onDataChange={loadData}
-              />
-            )}
-          </>
-        )}
-
-        {/* TEACHER FLOW */}
-        {currentUser?.role === 'teacher' && (
-          <TeacherView
-            teacher={currentUser}
-            courses={courses}
-            enrollments={enrollments}
-            students={studentUsers}
-            sessions={sessions}
-            attendanceRecords={attendanceRecords}
-            onDataChange={loadData}
-          />
-        )}
-
-        {/* ADMIN FLOW */}
-        {currentUser?.role === 'admin' && (
-          <AdminView
-            admin={currentUser}
-            users={users}
-            courses={courses}
-            enrollments={enrollments}
-            attendanceRecords={attendanceRecords}
-            onDataChange={loadData}
-            onSelectStudent={(approvedStudent) => {
-              setCurrentUser(approvedStudent);
-              setUser(approvedStudent);
-            }}
-          />
-        )}
-      </main>
-
-      {/* Minimal Footer */}
-      <footer className="border-t border-zinc-200 dark:border-zinc-800 py-4 text-center text-xs text-zinc-400">
-        Attendance Portal &bull; Biometric Face Verification &amp; Classroom Geofencing
-      </footer>
-
-      {/* Student Signup / Login Modal */}
-      <StudentAuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
-
-      {/* First-time Face Submission Modal (3 Photos or Live Video) */}
-      {currentUser && currentUser.role === 'student' && isOnboardingModalOpen && (
-        <StudentFaceOnboardingModal
-          student={currentUser}
-          isOpen={isOnboardingModalOpen}
-          onComplete={handleFaceOnboardingComplete}
-          onClose={currentUser.faceSubmitted ? () => setIsOnboardingModalOpen(false) : undefined}
+    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 flex justify-center text-zinc-900 dark:text-zinc-100 transition-colors">
+      <div className="w-full max-w-md min-h-screen bg-zinc-50 dark:bg-zinc-900 flex flex-col shadow-sm border-x border-zinc-200 dark:border-zinc-800 relative">
+        {/* Top Header */}
+        <Header
+          currentUser={currentUser}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onSelectRole={handleSelectRole}
+          onOpenAuth={handleSignOut}
         />
-      )}
 
-      {/* Non-intrusive Offline Indicator */}
-      <OfflineIndicator onSyncComplete={loadData} />
+        {/* Mobile Page Content Area */}
+        <main className="flex-1 p-4 overflow-y-auto">
+          {/* STUDENT FLOW */}
+          {currentUser.role === 'student' && (
+            <>
+              {/* If pending admin approval, do NOT show student dashboard */}
+              {currentUser.status === 'pending' ? (
+                <StudentPendingApprovalView
+                  student={currentUser}
+                  onSwitchToAdmin={() => handleSelectRole('admin')}
+                  onRefresh={loadData}
+                  onSignOut={handleSignOut}
+                />
+              ) : (
+                /* Approved Student Dashboard */
+                <StudentView
+                  student={currentUser}
+                  courses={courses}
+                  sessions={sessions}
+                  attendanceRecords={attendanceRecords}
+                  onDataChange={loadData}
+                  onSignOut={handleSignOut}
+                />
+              )}
+            </>
+          )}
+
+          {/* TEACHER FLOW */}
+          {currentUser.role === 'teacher' && (
+            <TeacherView
+              teacher={currentUser}
+              courses={courses}
+              enrollments={enrollments}
+              students={studentUsers}
+              sessions={sessions}
+              attendanceRecords={attendanceRecords}
+              onDataChange={loadData}
+            />
+          )}
+
+          {/* ADMIN FLOW */}
+          {currentUser.role === 'admin' && (
+            <AdminView
+              admin={currentUser}
+              users={users}
+              courses={courses}
+              enrollments={enrollments}
+              attendanceRecords={attendanceRecords}
+              onDataChange={loadData}
+              onSelectStudent={(approvedStudent) => {
+                setCurrentUser(approvedStudent);
+                setUser(approvedStudent);
+              }}
+            />
+          )}
+        </main>
+
+        {/* Offline & Encrypted Sync Indicator */}
+        <OfflineIndicator onSyncComplete={loadData} />
+      </div>
     </div>
   );
 }

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import {
+  BookOpen,
   Calendar,
+  CheckCircle2,
   Clock,
   MapPin,
-  CheckCircle2,
-  XCircle,
   Camera,
-  BookOpen,
-  ArrowUpRight,
   TrendingUp,
+  User,
+  LogOut,
+  XCircle,
+  ShieldCheck,
+  ChevronRight,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -24,6 +27,7 @@ interface StudentViewProps {
   sessions: ClassSession[];
   attendanceRecords: AttendanceRecord[];
   onDataChange: () => void;
+  onSignOut: () => void;
 }
 
 export const StudentView: React.FC<StudentViewProps> = ({
@@ -32,11 +36,12 @@ export const StudentView: React.FC<StudentViewProps> = ({
   sessions,
   attendanceRecords,
   onDataChange,
+  onSignOut,
 }) => {
-  const [activeTab, setActiveTab] = useState<'courses' | 'schedule' | 'history'>('courses');
+  const [activeTab, setActiveTab] = useState<'classes' | 'schedule' | 'attendance' | 'account'>('classes');
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
 
-  // Student's personal attendance records
+  // Filter attendance for this student
   const myAttendance = attendanceRecords.filter((r) => r.studentId === student.id);
   const totalMarked = myAttendance.length;
   const presentCount = myAttendance.filter((r) => r.status === 'present').length;
@@ -53,315 +58,384 @@ export const StudentView: React.FC<StudentViewProps> = ({
     if (aIsActive && !bIsActive) return -1;
     if (!aIsActive && bIsActive) return 1;
 
-    // Sort by startTime ('09:00' < '11:00')
     return (a.startTime || '').localeCompare(b.startTime || '');
   });
 
   return (
-    <div className="space-y-6">
-      {/* Top Minimal Metrics Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 text-xs">
-            <span>Overall Attendance</span>
-            <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {overallPercentage}%
-            </span>
-            <span className="text-xs text-zinc-500">
-              ({presentCount}/{totalMarked} classes)
-            </span>
-          </div>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${
-                overallPercentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'
-              }`}
-              style={{ width: `${overallPercentage}%` }}
-            />
-          </div>
-        </div>
+    <div className="flex flex-col pb-20">
+      {/* ----------------- TAB 1: CLASSES ----------------- */}
+      {activeTab === 'classes' && (
+        <div className="space-y-4">
+          {/* Welcome / Attendance Summary Card */}
+          <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs text-zinc-400 font-medium">Student Dashboard</span>
+                <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  {student.name}
+                </h1>
+                <p className="text-[11px] text-zinc-500 font-mono">{student.sid}</p>
+              </div>
 
-        <div className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 text-xs">
-            <span>Active Sessions Now</span>
-            <Clock className="w-3.5 h-3.5 text-emerald-600" />
-          </div>
-          <div className="mt-2">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {activeSessions.length}
-            </span>
-            <span className="text-xs text-zinc-500 ml-2">
-              {activeSessions.length > 0 ? 'Ready to mark' : 'No active class'}
-            </span>
-          </div>
-        </div>
-
-        <div className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 text-xs">
-            <span>Enrolled Courses</span>
-            <BookOpen className="w-3.5 h-3.5 text-zinc-400" />
-          </div>
-          <div className="mt-2">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {courses.length}
-            </span>
-            <span className="text-xs text-zinc-500 ml-2">Current Semester</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Clean Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold">
-        <button
-          onClick={() => setActiveTab('courses')}
-          className={`pb-2.5 px-1 border-b-2 transition ${
-            activeTab === 'courses'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-        >
-          Courses &amp; Attendance
-        </button>
-
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={`pb-2.5 px-1 border-b-2 transition ${
-            activeTab === 'schedule'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-        >
-          Class Schedule
-        </button>
-
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`pb-2.5 px-1 border-b-2 transition ${
-            activeTab === 'history'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-        >
-          Attendance History
-        </button>
-      </div>
-
-      {/* Tab 1: Courses & Current Course Pinned to Top */}
-      {activeTab === 'courses' && (
-        <div className="space-y-3">
-          {sortedCourses.map((course) => {
-            const courseAttendance = myAttendance.filter((r) => r.courseId === course.id);
-            const coursePresent = courseAttendance.filter((r) => r.status === 'present').length;
-            const coursePercent =
-              courseAttendance.length > 0
-                ? Math.round((coursePresent / courseAttendance.length) * 100)
-                : 100;
-
-            const liveSession = activeSessions.find((s) => s.courseId === course.id);
-            const alreadyMarked = liveSession
-              ? courseAttendance.some((a) => a.sessionId === liveSession.id)
-              : false;
-
-            return (
-              <div
-                key={course.id}
-                className={`p-4 rounded-xl bg-white dark:bg-zinc-900 border transition shadow-xs ${
-                  liveSession
-                    ? 'border-emerald-500/80 ring-1 ring-emerald-500/20'
-                    : 'border-zinc-200 dark:border-zinc-800'
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                        {course.code}
-                      </span>
-                      <span className="text-zinc-400">&bull;</span>
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {course.name}
-                      </span>
-
-                      {liveSession && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          Class in Session Now
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        {course.scheduleTime || 'Schedule TBA'}
-                      </span>
-                      <span>&bull;</span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {course.roomName}
-                      </span>
-                      <span>&bull;</span>
-                      <span>Instructor: {course.teacherName}</span>
-                    </div>
-                  </div>
-
-                  {/* Attendance Stats & Mark Button */}
-                  <div className="flex items-center gap-4 sm:justify-end">
-                    <div className="text-right">
-                      <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                        {coursePercent}% Attended
-                      </div>
-                      <div className="text-[11px] text-zinc-400">
-                        {coursePresent} of {courseAttendance.length} classes
-                      </div>
-                    </div>
-
-                    {liveSession && (
-                      <div>
-                        {alreadyMarked ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Marked Present
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => setSelectedSession(liveSession)}
-                            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg shadow-xs transition"
-                          >
-                            <Camera className="w-3.5 h-3.5" />
-                            <span>Mark Attendance</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+              <div className="text-right">
+                <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {overallPercentage}%
+                </span>
+                <div className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  Attendance
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Tab 2: Class Schedule Timetable */}
-      {activeTab === 'schedule' && (
-        <div className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Weekly Class Schedule
-          </h3>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 font-medium">
-                  <th className="py-2.5 px-3">Course</th>
-                  <th className="py-2.5 px-3">Days</th>
-                  <th className="py-2.5 px-3">Time</th>
-                  <th className="py-2.5 px-3">Room</th>
-                  <th className="py-2.5 px-3">Teacher</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 text-zinc-700 dark:text-zinc-300">
-                {sortedCourses.map((c) => (
-                  <tr key={c.id}>
-                    <td className="py-3 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
-                      {c.code} - {c.name}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono text-[11px]">
-                        {c.days?.join(', ') || 'Mon, Wed'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-medium">
-                      {c.startTime} - {c.endTime}
-                    </td>
-                    <td className="py-3 px-3">{c.roomName}</td>
-                    <td className="py-3 px-3 text-zinc-500">{c.teacherName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Attendance History Log */}
-      {activeTab === 'history' && (
-        <div className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Personal Attendance Records ({myAttendance.length})
-            </h3>
-          </div>
-
-          {myAttendance.length === 0 ? (
-            <div className="py-8 text-center text-xs text-zinc-500">
-              No attendance records recorded yet.
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 font-medium">
-                    <th className="py-2.5 px-3">Date &amp; Time</th>
-                    <th className="py-2.5 px-3">Course</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Method</th>
-                    <th className="py-2.5 px-3">Distance</th>
-                    <th className="py-2.5 px-3">Face Verification</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 text-zinc-700 dark:text-zinc-300">
-                  {myAttendance.map((rec) => (
-                    <tr key={rec.id}>
-                      <td className="py-3 px-3 text-zinc-500">
-                        {new Date(rec.timestamp).toLocaleDateString()}{' '}
-                        {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="py-3 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
-                        {rec.courseCode}
-                      </td>
-                      <td className="py-3 px-3">
+
+            <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  overallPercentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+                style={{ width: `${overallPercentage}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Section Title */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              My Courses ({courses.length})
+            </span>
+            <span className="text-[11px] text-zinc-500">Sorted by class time</span>
+          </div>
+
+          {/* Course Cards List */}
+          <div className="space-y-3">
+            {sortedCourses.map((course) => {
+              const courseAttendance = myAttendance.filter((r) => r.courseId === course.id);
+              const coursePresent = courseAttendance.filter((r) => r.status === 'present').length;
+              const coursePercent =
+                courseAttendance.length > 0
+                  ? Math.round((coursePresent / courseAttendance.length) * 100)
+                  : 100;
+
+              const liveSession = activeSessions.find((s) => s.courseId === course.id);
+              const alreadyMarked = liveSession
+                ? courseAttendance.some((a) => a.sessionId === liveSession.id)
+                : false;
+
+              return (
+                <div
+                  key={course.id}
+                  className={`p-4 rounded-2xl bg-white dark:bg-zinc-900 border transition shadow-xs space-y-3 ${
+                    liveSession
+                      ? 'border-emerald-500/80 ring-1 ring-emerald-500/20'
+                      : 'border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                          {course.code}
+                        </span>
+                        {liveSession && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Class
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mt-0.5">
+                        {course.name}
+                      </h2>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                        {coursePercent}%
+                      </span>
+                      <div className="text-[10px] text-zinc-400">
+                        {coursePresent}/{courseAttendance.length} Attended
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Course Details */}
+                  <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-zinc-500 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                      {course.scheduleTime}
+                    </span>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+                      {course.roomName}
+                    </span>
+                  </div>
+
+                  {/* Active Session Button */}
+                  {liveSession && (
+                    <div className="pt-1">
+                      {alreadyMarked ? (
+                        <div className="w-full py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-emerald-200 dark:border-emerald-800">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Attendance Recorded (Present)</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedSession(liveSession)}
+                          className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Mark Attendance Now</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ----------------- TAB 2: SCHEDULE ----------------- */}
+      {activeTab === 'schedule' && (
+        <div className="space-y-4">
+          <div className="px-1">
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              Weekly Class Timetable
+            </h2>
+            <p className="text-xs text-zinc-500">Days, times, and lecture rooms</p>
+          </div>
+
+          <div className="space-y-2.5">
+            {sortedCourses.map((c) => (
+              <div
+                key={c.id}
+                className="p-3.5 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs flex items-center justify-between text-xs"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                      {c.code}
+                    </span>
+                    <span className="text-zinc-500 truncate max-w-[150px]">
+                      {c.name}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                    <span>{c.roomName}</span>
+                    <span>&bull;</span>
+                    <span>{c.teacherName}</span>
+                  </div>
+                </div>
+
+                <div className="text-right flex-shrink-0">
+                  <span className="font-semibold text-blue-600 dark:text-blue-400 block font-mono text-xs">
+                    {c.startTime} - {c.endTime}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    {c.days?.join(', ') || 'Mon, Wed'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ----------------- TAB 3: ATTENDANCE BREAKDOWN ----------------- */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-4">
+          <div className="px-1">
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              Attendance Records
+            </h2>
+            <p className="text-xs text-zinc-500">
+              {presentCount} of {totalMarked} total classes attended
+            </p>
+          </div>
+
+          {/* Breakdown cards */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3 shadow-xs">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              Per-Course Attendance
+            </h3>
+            <div className="space-y-2 text-xs">
+              {courses.map((c) => {
+                const recs = myAttendance.filter((r) => r.courseId === c.id);
+                const attended = recs.filter((r) => r.status === 'present').length;
+                const pct = recs.length > 0 ? Math.round((attended / recs.length) * 100) : 100;
+
+                return (
+                  <div key={c.id} className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                        {c.code} ({attended}/{recs.length})
+                      </span>
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                        {pct}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          pct >= 75 ? 'bg-blue-600' : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* History List */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-1">
+              History Log ({myAttendance.length})
+            </h3>
+            {myAttendance.length === 0 ? (
+              <div className="p-6 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-500">
+                No past attendance records yet.
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/80 text-xs">
+                {myAttendance.map((r) => (
+                  <div key={r.id} className="p-3 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                          {r.courseCode}
+                        </span>
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                            rec.status === 'present'
-                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            r.status === 'present'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
                           }`}
                         >
-                          {rec.status === 'present' ? (
-                            <CheckCircle2 className="w-3 h-3" />
-                          ) : (
-                            <XCircle className="w-3 h-3" />
-                          )}
-                          {rec.status.toUpperCase()}
+                          {r.status.toUpperCase()}
                         </span>
-                      </td>
-                      <td className="py-3 px-3 capitalize">
-                        {rec.method === 'manual' ? (
-                          <span className="text-zinc-500 font-medium">Teacher Override</span>
-                        ) : (
-                          'Self (App)'
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-zinc-500">
-                        {rec.distanceMeters !== undefined ? `${rec.distanceMeters}m away` : '-'}
-                      </td>
-                      <td className="py-3 px-3 text-zinc-500">
-                        {rec.faceScore ? `${Math.round(rec.faceScore * 100)}% match` : 'Verified'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-0.5">
+                        {new Date(r.timestamp).toLocaleDateString()}{' '}
+                        {new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+
+                    <div className="text-right text-[11px] text-zinc-400">
+                      {r.method === 'manual' ? 'Teacher Fallback' : `${r.distanceMeters ?? 0}m GPS`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Attendance Camera & Geofence Modal */}
+      {/* ----------------- TAB 4: ACCOUNT / PROFILE ----------------- */}
+      {activeTab === 'account' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3 text-xs shadow-xs">
+            <div className="flex items-center gap-3 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
+                {student.name.charAt(0)}
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  {student.name}
+                </h2>
+                <p className="text-zinc-500 font-mono text-[11px]">{student.sid}</p>
+                <span className="inline-block mt-0.5 px-2 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  Approved Student
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-zinc-600 dark:text-zinc-300">
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Email:</span>
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{student.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Department:</span>
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{student.program || 'Computer Science'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Face Verification:</span>
+                <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Verified
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={onSignOut}
+            className="w-full h-11 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out / Switch Account</span>
+          </button>
+        </div>
+      )}
+
+      {/* ----------------- FIXED MOBILE BOTTOM NAVIGATION BAR ----------------- */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800">
+        <div className="max-w-md mx-auto grid grid-cols-4 h-15">
+          <button
+            onClick={() => setActiveTab('classes')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeTab === 'classes'
+                ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span className="text-[10px]">Classes</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('schedule')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeTab === 'schedule'
+                ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span className="text-[10px]">Schedule</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeTab === 'attendance'
+                ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            <span className="text-[10px]">Attendance</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('account')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeTab === 'account'
+                ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span className="text-[10px]">Profile</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Attendance Modal */}
       {selectedSession && (
         <MarkAttendanceModal
           session={selectedSession}
